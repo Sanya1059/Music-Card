@@ -112,6 +112,16 @@ body {
     color: #87909b;
 }
 
+.recent-empty {
+    margin: 0;
+    padding: 8px;
+    border-radius: 8px;
+    background: #12151b;
+    border: 1px solid #2a2f3a;
+    font-size: 11px;
+    color: #97a0ac;
+}
+
 /* Стиль для кнопок-посилань */
 .link-button {
     display: block;

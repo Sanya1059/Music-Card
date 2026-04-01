@@ -3,6 +3,10 @@ const LASTFM_USER = 'Sanya1059';
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
 
+function getArtistName(track) {
+    return track?.artist?.['#text'] || 'Невідомий виконавець';
+}
+
 function formatLastPlayed(track) {
     const isPlaying = track['@attr'] && track['@attr'].nowplaying === 'true';
     if (isPlaying) {
@@ -60,9 +64,18 @@ async function renderRecentTracks(tracks) {
     const recentTracksContainer = document.getElementById('recent-tracks');
     recentTracksContainer.innerHTML = '';
 
+    if (!tracks.length) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'recent-empty';
+        emptyState.textContent = 'Немає нещодавніх прослуховувань';
+        recentTracksContainer.appendChild(emptyState);
+        recentSection.style.display = 'block';
+        return;
+    }
+
     const tracksWithPlaycount = await Promise.all(
         tracks.map(async (track) => {
-            const artistName = track.artist?.['#text'] || 'Невідомий виконавець';
+            const artistName = getArtistName(track);
             const playcount = await getUserPlaycount(track.name, artistName);
             return { track, playcount };
         })
@@ -70,7 +83,7 @@ async function renderRecentTracks(tracks) {
 
     for (const item of tracksWithPlaycount) {
         const track = item.track;
-        const artistName = track.artist?.['#text'] || 'Невідомий виконавець';
+        const artistName = getArtistName(track);
 
         const row = document.createElement('div');
         row.className = 'recent-track';
@@ -106,22 +119,39 @@ async function updateMusic() {
         const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${LASTFM_USER}&api_key=${API_KEY}&format=json&limit=${RECENT_TRACK_LIMIT}`;
         const response = await fetch(url);
         const data = await response.json();
-        
-        if (!data.recenttracks || !data.recenttracks.track[0]) return;
-        
-        const track = data.recenttracks.track[0];
+
+        if (data.error) {
+            throw new Error(data.message || 'Last.fm API error');
+        }
+
+        const tracks = data?.recenttracks?.track || [];
+        if (!tracks.length) {
+            document.getElementById('track-name').innerText = 'Немає даних';
+            document.getElementById('track-artist').innerText = 'Перевір Last.fm scrobbling';
+            document.getElementById('track-status').innerText = 'Останній трек';
+            document.getElementById('music-card').style.display = 'flex';
+            await renderRecentTracks([]);
+            return;
+        }
+
+        const track = tracks[0];
         const isPlaying = track['@attr'] && track['@attr'].nowplaying === 'true';
         
         document.getElementById('track-name').innerText = track.name;
-        document.getElementById('track-artist').innerText = track.artist['#text'];
+        document.getElementById('track-artist').innerText = getArtistName(track);
         
         document.getElementById('track-status').innerText = isPlaying ? "Зараз грає" : "Останній трек";
         document.getElementById('music-card').style.display = 'flex';
 
-        await renderRecentTracks(data.recenttracks.track.slice(0, RECENT_TRACK_LIMIT));
+        await renderRecentTracks(tracks.slice(0, RECENT_TRACK_LIMIT));
         
     } catch (e) {
         console.error("Музика не завантажилась:", e);
+        document.getElementById('track-name').innerText = 'Помилка завантаження';
+        document.getElementById('track-artist').innerText = 'Перевір API ключ і Last.fm';
+        document.getElementById('track-status').innerText = 'Останній трек';
+        document.getElementById('music-card').style.display = 'flex';
+        await renderRecentTracks([]);
     }
 }
 
