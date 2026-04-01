@@ -7,17 +7,17 @@ body {
     align-items: center;
     min-height: 100vh;
     font-family: 'Segoe UI', Tahoma, sans-serif;
-    background: #0f1115;
-    color: #e9edf2;
+    background: #0b0c0f;
+    color: #eceff4;
 }
 
 .card {
-    background: #181b22;
-    border: 1px solid #2a2f3a;
-    padding: 22px;
-    border-radius: 12px;
+    background: #14161b;
+    border: 1px solid #272b34;
+    padding: 20px;
+    border-radius: 10px;
     width: min(360px, calc(100vw - 24px));
-    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
+    box-shadow: none;
 }
 
 .music-card {
@@ -63,7 +63,7 @@ body {
 }
 
 .recent-section {
-    display: none;
+    display: block;
     margin-top: 14px;
     text-align: left;
 }
@@ -120,22 +120,4 @@ body {
     border: 1px solid #2a2f3a;
     font-size: 11px;
     color: #97a0ac;
-}
-
-/* Стиль для кнопок-посилань */
-.link-button {
-    display: block;
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    text-decoration: none;
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 12px;
-    transition: 0.3s;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.link-button:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: translateY(-2px);
 }

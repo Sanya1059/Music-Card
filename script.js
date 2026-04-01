@@ -3,6 +3,22 @@ const LASTFM_USER = 'Sanya1059';
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
 
+function asArray(value) {
+    if (!value) {
+        return [];
+    }
+
+    return Array.isArray(value) ? value : [value];
+}
+
+function initMusicUI() {
+    document.getElementById('track-name').innerText = 'Завантаження...';
+    document.getElementById('track-artist').innerText = 'Чекаємо відповідь Last.fm';
+    document.getElementById('track-status').innerText = 'Останній трек';
+    document.getElementById('music-card').style.display = 'flex';
+    renderRecentTracks([]);
+}
+
 function getArtistName(track) {
     return track?.artist?.['#text'] || 'Невідомий виконавець';
 }
@@ -124,7 +140,7 @@ async function updateMusic() {
             throw new Error(data.message || 'Last.fm API error');
         }
 
-        const tracks = data?.recenttracks?.track || [];
+        const tracks = asArray(data?.recenttracks?.track);
         if (!tracks.length) {
             document.getElementById('track-name').innerText = 'Немає даних';
             document.getElementById('track-artist').innerText = 'Перевір Last.fm scrobbling';
@@ -155,5 +171,6 @@ async function updateMusic() {
     }
 }
 
+initMusicUI();
 updateMusic();
 setInterval(updateMusic, 30000);
