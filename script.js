@@ -3,10 +3,6 @@ const LASTFM_USER = 'Sanya1059';
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
 const API_FETCH_LIMIT = 120;
-const SOURCE_COUNT_KEY = 'tracking_source_count';
-
-const playcountCache = new Map();
-const nowPlayingIncrementGuard = new Set();
 
 function asArray(value) {
     if (!value) {
@@ -74,56 +70,113 @@ function formatLastPlayed(track) {
     }).format(new Date(Number(uts) * 1000));
 }
 
-async function getUserPlaycount(trackName, artistName) {
-    const cacheKey = `${trackName}::${artistName}`.toLowerCase();
-    if (playcountCache.has(cacheKey)) {
-        return playcountCache.get(cacheKey);
-    }
-
-    const params = new URLSearchParams({
-        method: 'track.getInfo',
-        user: LASTFM_USER,
-        api_key: API_KEY,
-        artist: artistName,
-        track: trackName,
-        autocorrect: '1',
-        format: 'json'
-    });
-
-    try {
-        const response = await fetch(`https://ws.audioscrobbler.com/2.0/?${params.toString()}`);
-        const data = await response.json();
-        const normalized = normalizePlaycount(data?.track?.userplaycount || '0');
-        playcountCache.set(cacheKey, normalized);
-        return normalized;
-    } catch {
-        return 1;
-    }
+function formatTime(ts) {
+    return new Intl.DateTimeFormat('uk-UA', {
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(new Date(ts * 1000));
 }
 
-function normalizePlaycount(playcount) {
-    const numeric = Number(playcount);
-    if (!Number.isFinite(numeric) || numeric < 1) {
-        return 1;
+function buildTrackPeriods(allTracks) {
+    const periodMap = new Map();
+    const nowTs = Math.floor(Date.now() / 1000);
+
+    for (const track of allTracks) {
+        const key = getTrackKey(track);
+        if (!key) {
+            continue;
+        }
+
+        const uts = track?.date?.uts;
+        const ts = isNowPlaying(track) ? nowTs : Number(uts);
+        if (!Number.isFinite(ts) || ts <= 0) {
+            continue;
+        }
+
+        const existing = periodMap.get(key) || {
+            startTs: ts,
+            endTs: ts,
+            isNow: false
+        };
+
+        existing.startTs = Math.min(existing.startTs, ts);
+        existing.endTs = Math.max(existing.endTs, ts);
+        if (isNowPlaying(track)) {
+            existing.isNow = true;
+            existing.endTs = nowTs;
+        }
+
+        periodMap.set(key, existing);
     }
 
-    return Math.floor(numeric);
+    return periodMap;
 }
 
-function getDisplayPlaycount(track, basePlaycount) {
-    const key = getTrackKey(track);
-    const normalized = normalizePlaycount(basePlaycount);
-
-    if (!isNowPlaying(track)) {
-        return normalized;
+function formatTrackPeriod(track, periodMap) {
+    const period = periodMap.get(getTrackKey(track));
+    if (!period) {
+        return 'Період: невідомо';
     }
 
-    if (nowPlayingIncrementGuard.has(key)) {
-        return normalized;
+    const start = formatTime(period.startTs);
+    const end = period.isNow ? 'зараз' : formatTime(period.endTs);
+
+    if (start === end) {
+        return `Період: ${start}`;
     }
 
-    nowPlayingIncrementGuard.add(key);
-    return normalized + 1;
+    return `Період: ${start} - ${end}`;
+}
+
+function inferExtraSourceState(allTracks) {
+    const todayTracks = allTracks.filter((track) => isTodayByUts(track?.date?.uts));
+    const todayUnique = dedupeTracks(todayTracks).length;
+
+    const timestamps = todayTracks
+        .map((track) => Number(track?.date?.uts))
+        .filter((ts) => Number.isFinite(ts) && ts > 0)
+        .sort((a, b) => b - a);
+
+    let shortGaps = 0;
+    for (let i = 0; i < timestamps.length - 1; i += 1) {
+        if (timestamps[i] - timestamps[i + 1] <= 180) {
+            shortGaps += 1;
+        }
+    }
+
+    const probableExtra = todayTracks.length >= 12 || (todayUnique >= 7 && shortGaps >= 3);
+
+    if (probableExtra) {
+        return {
+            active: true,
+            status: 'Ймовірно є додаткове джерело',
+            hint: `Сьогодні ${todayTracks.length} скроблів і щільний патерн. Схоже, в Pano увімкнено ще одне відстеження.`
+        };
+    }
+
+    return {
+        active: false,
+        status: 'Базове джерело',
+        hint: `Сьогодні ${todayTracks.length} скроблів. Ознак додаткового джерела не виявлено.`
+    };
+}
+
+function renderTrackingPanels(allTracks) {
+    const status = document.getElementById('tracking-status');
+    const hint = document.getElementById('tracking-hint');
+    const extraWindow = document.getElementById('extra-source-window');
+    const extraText = document.getElementById('extra-source-text');
+
+    const state = inferExtraSourceState(allTracks);
+    status.textContent = state.status;
+    hint.textContent = state.hint;
+
+    if (state.active) {
+        extraWindow.style.display = 'block';
+        extraText.textContent = 'Автоматично виявлено ознаки додаткового джерела відстеження.';
+    } else {
+        extraWindow.style.display = 'none';
+    }
 }
 
 function renderLiveTimeline(allTracks) {
@@ -165,58 +218,7 @@ function renderLiveTimeline(allTracks) {
         : 'Сьогодні ще немає прослуховувань';
 }
 
-function getTrackingSourceCount() {
-    const raw = Number(localStorage.getItem(SOURCE_COUNT_KEY));
-    if (!Number.isFinite(raw) || raw < 1) {
-        return 1;
-    }
-
-    return Math.floor(raw);
-}
-
-function setTrackingSourceCount(count) {
-    const normalized = Math.max(1, Math.floor(count));
-    localStorage.setItem(SOURCE_COUNT_KEY, String(normalized));
-    renderTrackingPanels();
-}
-
-function renderTrackingPanels() {
-    const count = getTrackingSourceCount();
-    const status = document.getElementById('tracking-status');
-    const hint = document.getElementById('tracking-hint');
-    const extraWindow = document.getElementById('extra-source-window');
-    const extraText = document.getElementById('extra-source-text');
-
-    status.textContent = count === 1
-        ? '1 джерело (базове)'
-        : `${count} джерела активні`;
-
-    hint.textContent = count === 1
-        ? 'Натисни +1, якщо в Pano Scrobbler додав ще одне відстеження.'
-        : `Додаткових джерел: ${count - 1}. Вікно нижче з\'являється автоматично.`;
-
-    if (count > 1) {
-        extraWindow.style.display = 'block';
-        extraText.textContent = `Працює розширений режим: +${count - 1} додаткове(их) джерело(а).`;
-    } else {
-        extraWindow.style.display = 'none';
-    }
-}
-
-function attachTrackingControls() {
-    const incButton = document.getElementById('source-inc');
-    const decButton = document.getElementById('source-dec');
-
-    incButton.addEventListener('click', () => {
-        setTrackingSourceCount(getTrackingSourceCount() + 1);
-    });
-
-    decButton.addEventListener('click', () => {
-        setTrackingSourceCount(getTrackingSourceCount() - 1);
-    });
-}
-
-async function renderRecentTracks(tracks) {
+async function renderRecentTracks(tracks, periodMap) {
     const recentTracksContainer = document.getElementById('recent-tracks');
     recentTracksContainer.innerHTML = '';
 
@@ -229,15 +231,8 @@ async function renderRecentTracks(tracks) {
     }
 
     const limited = dedupeTracks(tracks).slice(0, RECENT_TRACK_LIMIT);
-    const tracksWithPlaycount = await Promise.all(
-        limited.map(async (track) => {
-            const artistName = getArtistName(track);
-            const basePlaycount = await getUserPlaycount(track.name, artistName);
-            return { track, artistName, basePlaycount };
-        })
-    );
 
-    for (const item of tracksWithPlaycount) {
+    for (const track of limited) {
         const row = document.createElement('div');
         row.className = 'recent-track';
 
@@ -246,15 +241,15 @@ async function renderRecentTracks(tracks) {
 
         const nameEl = document.createElement('p');
         nameEl.className = 'recent-track-name';
-        nameEl.textContent = item.track.name;
+        nameEl.textContent = track.name;
 
         const artistEl = document.createElement('p');
         artistEl.className = 'recent-track-artist';
-        artistEl.textContent = item.artistName;
+        artistEl.textContent = getArtistName(track);
 
         const metaEl = document.createElement('p');
         metaEl.className = 'recent-track-meta';
-        metaEl.textContent = `Прослуховувань: ${getDisplayPlaycount(item.track, item.basePlaycount)} • ${formatLastPlayed(item.track)}`;
+        metaEl.textContent = `${formatTrackPeriod(track, periodMap)} • ${formatLastPlayed(track)}`;
 
         info.appendChild(nameEl);
         info.appendChild(artistEl);
@@ -271,7 +266,7 @@ function initMusicUI() {
     document.getElementById('music-card').style.display = 'flex';
     document.getElementById('recent-tracks').innerHTML = '<p class="recent-empty">Немає нещодавніх прослуховувань</p>';
     document.getElementById('live-summary').textContent = 'Немає активності за сьогодні';
-    renderTrackingPanels();
+    renderTrackingPanels([]);
 }
 
 async function updateMusic() {
@@ -286,14 +281,16 @@ async function updateMusic() {
 
         const allTracks = asArray(data?.recenttracks?.track);
         const dedupedTracks = dedupeTracks(allTracks);
+        const periodMap = buildTrackPeriods(allTracks);
+
         if (!dedupedTracks.length) {
             document.getElementById('track-name').innerText = 'Немає даних';
             document.getElementById('track-artist').innerText = 'Перевір Last.fm scrobbling';
             document.getElementById('track-status').innerText = 'Останній трек';
             document.getElementById('music-card').style.display = 'flex';
-            await renderRecentTracks([]);
+            await renderRecentTracks([], periodMap);
             renderLiveTimeline([]);
-            renderYoutubePanel(0);
+            renderTrackingPanels([]);
             return;
         }
 
@@ -303,21 +300,21 @@ async function updateMusic() {
         document.getElementById('track-status').innerText = isNowPlaying(currentTrack) ? 'Зараз грає' : 'Останній трек';
         document.getElementById('music-card').style.display = 'flex';
 
-        await renderRecentTracks(dedupedTracks);
+        await renderRecentTracks(dedupedTracks, periodMap);
         renderLiveTimeline(allTracks);
+        renderTrackingPanels(allTracks);
     } catch (error) {
         console.error('Музика не завантажилась:', error);
         document.getElementById('track-name').innerText = 'Помилка завантаження';
         document.getElementById('track-artist').innerText = 'Перевір API ключ і Last.fm';
         document.getElementById('track-status').innerText = 'Останній трек';
         document.getElementById('music-card').style.display = 'flex';
-        await renderRecentTracks([]);
+        await renderRecentTracks([], new Map());
         renderLiveTimeline([]);
-        renderTrackingPanels();
+        renderTrackingPanels([]);
     }
 }
 
-    attachTrackingControls();
 initMusicUI();
 updateMusic();
 setInterval(updateMusic, 30000);
