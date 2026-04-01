@@ -20,6 +20,15 @@ body {
     box-shadow: none;
 }
 
+.card-title {
+    margin: 0 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    color: #cfd5de;
+    text-transform: uppercase;
+}
+
 .music-card {
     display: none;
     padding: 12px;
@@ -65,15 +74,20 @@ body {
 .recent-section {
     display: block;
     margin-top: 14px;
+    padding: 10px;
+    border: 1px solid #2a2f3a;
+    border-radius: 8px;
+    min-height: 72px;
+    background: #101319;
     text-align: left;
 }
 
 .recent-title {
-    margin: 0 0 10px;
+    margin: 0 0 8px;
     font-size: 12px;
     letter-spacing: 0.8px;
     text-transform: uppercase;
-    color: #97a0ac;
+    color: #c3cad4;
 }
 
 .recent-track {
@@ -116,8 +130,8 @@ body {
     margin: 0;
     padding: 8px;
     border-radius: 8px;
-    background: #12151b;
+    background: #171b23;
     border: 1px solid #2a2f3a;
-    font-size: 11px;
-    color: #97a0ac;
+    font-size: 12px;
+    color: #d0d6df;
 }
