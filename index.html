@@ -10,12 +10,11 @@
     <div class="card">
 
         <!-- Музична картка -->
-        <div id="music-card" style="display: none; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 12px; padding: 12px; margin-top: 15px; align-items: center; border: 1px solid rgba(255, 255, 255, 0.15); transition: 0.3s;">
-            <img id="track-art" src="" style="width: 45px; height: 45px; border-radius: 6px; margin-right: 12px; object-fit: cover;">
-            <div style="text-align: left; overflow: hidden;">
-                <p id="track-status" style="font-size: 9px; margin: 0; opacity: 0.6; text-transform: uppercase; color: white; letter-spacing: 1px;">Зараз слухаю</p>
-                <p id="track-name" style="font-size: 13px; margin: 2px 0; font-weight: bold; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></p>
-                <p id="track-artist" style="font-size: 11px; margin: 0; opacity: 0.8; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></p>
+        <div id="music-card" class="music-card">
+            <div class="music-card-info">
+                <p id="track-status" class="track-status">Зараз слухаю</p>
+                <p id="track-name" class="track-name"></p>
+                <p id="track-artist" class="track-artist"></p>
             </div>
         </div>
 

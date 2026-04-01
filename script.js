@@ -2,25 +2,6 @@
 const LASTFM_USER = 'Sanya1059'; 
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
-const DEFAULT_COVER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23333'/%3E%3Ctext x='50%25' y='50%25' font-size='12' fill='white' dominant-baseline='middle' text-anchor='middle'%3EMusic%3C/text%3E%3C/svg%3E";
-
-function toHttpsUrl(url) {
-    if (!url) {
-        return '';
-    }
-
-    return url.replace(/^http:\/\//i, 'https://');
-}
-
-function getTrackImage(track) {
-    const imageList = Array.isArray(track.image) ? track.image : [];
-    const bestImage = imageList
-        .map((img) => img?.['#text'])
-        .filter(Boolean)
-        .pop();
-
-    return toHttpsUrl(bestImage) || DEFAULT_COVER;
-}
 
 function formatLastPlayed(track) {
     const isPlaying = track['@attr'] && track['@attr'].nowplaying === 'true';
@@ -68,6 +49,12 @@ function normalizePlaycount(playcount) {
     return Math.floor(numeric);
 }
 
+function getDisplayPlaycount(track, playcount) {
+    const normalized = normalizePlaycount(playcount);
+    const isPlaying = track['@attr'] && track['@attr'].nowplaying === 'true';
+    return isPlaying ? normalized + 1 : normalized;
+}
+
 async function renderRecentTracks(tracks) {
     const recentSection = document.getElementById('recent-section');
     const recentTracksContainer = document.getElementById('recent-tracks');
@@ -88,13 +75,6 @@ async function renderRecentTracks(tracks) {
         const row = document.createElement('div');
         row.className = 'recent-track';
 
-        const art = document.createElement('img');
-        art.src = getTrackImage(track);
-        art.alt = `${track.name} cover`;
-        art.onerror = () => {
-            art.src = DEFAULT_COVER;
-        };
-
         const info = document.createElement('div');
         info.className = 'recent-track-info';
 
@@ -108,13 +88,12 @@ async function renderRecentTracks(tracks) {
 
         const metaEl = document.createElement('p');
         metaEl.className = 'recent-track-meta';
-        metaEl.textContent = `Прослуховувань: ${normalizePlaycount(item.playcount)} • ${formatLastPlayed(track)}`;
+        metaEl.textContent = `Прослуховувань: ${getDisplayPlaycount(track, item.playcount)} • ${formatLastPlayed(track)}`;
 
         info.appendChild(nameEl);
         info.appendChild(artistEl);
         info.appendChild(metaEl);
 
-        row.appendChild(art);
         row.appendChild(info);
         recentTracksContainer.appendChild(row);
     }
@@ -135,12 +114,6 @@ async function updateMusic() {
         
         document.getElementById('track-name').innerText = track.name;
         document.getElementById('track-artist').innerText = track.artist['#text'];
-        
-        const imgUrl = getTrackImage(track);
-        document.getElementById('track-art').src = imgUrl;
-        document.getElementById('track-art').onerror = (event) => {
-            event.currentTarget.src = DEFAULT_COVER;
-        };
         
         document.getElementById('track-status').innerText = isPlaying ? "Зараз грає" : "Останній трек";
         document.getElementById('music-card').style.display = 'flex';
