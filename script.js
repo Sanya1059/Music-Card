@@ -128,54 +128,18 @@ function formatTrackPeriod(track, periodMap) {
     return `Період: ${start} - ${end}`;
 }
 
-function inferExtraSourceState(allTracks) {
-    const todayTracks = allTracks.filter((track) => isTodayByUts(track?.date?.uts));
-    const todayUnique = dedupeTracks(todayTracks).length;
-
-    const timestamps = todayTracks
-        .map((track) => Number(track?.date?.uts))
-        .filter((ts) => Number.isFinite(ts) && ts > 0)
-        .sort((a, b) => b - a);
-
-    let shortGaps = 0;
-    for (let i = 0; i < timestamps.length - 1; i += 1) {
-        if (timestamps[i] - timestamps[i + 1] <= 180) {
-            shortGaps += 1;
-        }
-    }
-
-    const probableExtra = todayTracks.length >= 12 || (todayUnique >= 7 && shortGaps >= 3);
-
-    if (probableExtra) {
-        return {
-            active: true,
-            status: 'Ймовірно є додаткове джерело',
-            hint: `Сьогодні ${todayTracks.length} скроблів і щільний патерн. Схоже, в Pano увімкнено ще одне відстеження.`
-        };
-    }
-
-    return {
-        active: false,
-        status: 'Базове джерело',
-        hint: `Сьогодні ${todayTracks.length} скроблів. Ознак додаткового джерела не виявлено.`
-    };
-}
-
 function renderTrackingPanels(allTracks) {
     const status = document.getElementById('tracking-status');
     const hint = document.getElementById('tracking-hint');
-    const extraWindow = document.getElementById('extra-source-window');
-    const extraText = document.getElementById('extra-source-text');
 
-    const state = inferExtraSourceState(allTracks);
-    status.textContent = state.status;
-    hint.textContent = state.hint;
+    const todayTracks = allTracks.filter((track) => isTodayByUts(track?.date?.uts));
 
-    if (state.active) {
-        extraWindow.style.display = 'block';
-        extraText.textContent = 'Автоматично виявлено ознаки додаткового джерела відстеження.';
+    if (todayTracks.length) {
+        status.textContent = 'Скроблінг активний';
+        hint.textContent = `Last.fm отримує треки (${todayTracks.length} за сьогодні), але не передає назву джерела або апки.`;
     } else {
-        extraWindow.style.display = 'none';
+        status.textContent = 'Немає свіжих скроблів';
+        hint.textContent = 'Якщо в Last.fm трек уже з’явився, просто зачекай оновлення сайту. Джерело типу YouTube mod API не розкриває.';
     }
 }
 

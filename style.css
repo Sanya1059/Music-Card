@@ -171,15 +171,6 @@ body {
     font-weight: 600;
 }
 
-.extra-source-window {
-    display: none;
-    margin-top: 12px;
-    padding: 10px;
-    border: 1px solid #404757;
-    border-radius: 8px;
-    background: #121722;
-}
-
 @media (max-width: 420px) {
     .card {
         width: calc(100vw - 16px);
