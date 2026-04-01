@@ -2,9 +2,16 @@
 const LASTFM_USER = 'Sanya1059'; 
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
+const DEFAULT_COVER = 'https://via.placeholder.com/80?text=Music';
 
 function getTrackImage(track) {
-    return track.image?.[2]?.['#text'] || 'https://via.placeholder.com/50?text=Music';
+    const imageList = Array.isArray(track.image) ? track.image : [];
+    const bestImage = imageList
+        .map((img) => img?.['#text'])
+        .filter(Boolean)
+        .pop();
+
+    return bestImage || DEFAULT_COVER;
 }
 
 function formatLastPlayed(track) {
@@ -44,6 +51,15 @@ async function getUserPlaycount(trackName, artistName) {
     }
 }
 
+function normalizePlaycount(playcount) {
+    const numeric = Number(playcount);
+    if (!Number.isFinite(numeric) || numeric < 1) {
+        return 1;
+    }
+
+    return Math.floor(numeric);
+}
+
 async function renderRecentTracks(tracks) {
     const recentSection = document.getElementById('recent-section');
     const recentTracksContainer = document.getElementById('recent-tracks');
@@ -67,6 +83,9 @@ async function renderRecentTracks(tracks) {
         const art = document.createElement('img');
         art.src = getTrackImage(track);
         art.alt = `${track.name} cover`;
+        art.onerror = () => {
+            art.src = DEFAULT_COVER;
+        };
 
         const info = document.createElement('div');
         info.className = 'recent-track-info';
@@ -81,7 +100,7 @@ async function renderRecentTracks(tracks) {
 
         const metaEl = document.createElement('p');
         metaEl.className = 'recent-track-meta';
-        metaEl.textContent = `Прослуховувань: ${item.playcount} • ${formatLastPlayed(track)}`;
+        metaEl.textContent = `Прослуховувань: ${normalizePlaycount(item.playcount)} • ${formatLastPlayed(track)}`;
 
         info.appendChild(nameEl);
         info.appendChild(artistEl);
@@ -111,6 +130,9 @@ async function updateMusic() {
         
         const imgUrl = getTrackImage(track);
         document.getElementById('track-art').src = imgUrl;
+        document.getElementById('track-art').onerror = (event) => {
+            event.currentTarget.src = DEFAULT_COVER;
+        };
         
         document.getElementById('track-status').innerText = isPlaying ? "Зараз грає" : "Останній трек";
         document.getElementById('music-card').style.display = 'flex';
