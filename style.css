@@ -135,3 +135,49 @@ body {
     font-size: 12px;
     color: #d0d6df;
 }
+
+.live-section,
+.youtube-panel {
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px solid #2a2f3a;
+    border-radius: 8px;
+    background: #101319;
+}
+
+.live-timeline {
+    height: 48px;
+    display: grid;
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+    gap: 3px;
+    align-items: end;
+}
+
+.live-bar {
+    background: #7e8795;
+    border-radius: 2px;
+    min-height: 6px;
+}
+
+.live-summary,
+.youtube-status,
+.youtube-hint {
+    margin: 8px 0 0;
+    font-size: 11px;
+    color: #c9d0d9;
+}
+
+.youtube-status {
+    font-weight: 600;
+}
+
+@media (max-width: 420px) {
+    .card {
+        width: calc(100vw - 16px);
+        padding: 14px;
+    }
+
+    .live-timeline {
+        gap: 2px;
+    }
+}

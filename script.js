@@ -1,7 +1,11 @@
 // Твої дані з Last.fm
-const LASTFM_USER = 'Sanya1059'; 
+const LASTFM_USER = 'Sanya1059';
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
+const API_FETCH_LIMIT = 120;
+
+const playcountCache = new Map();
+const nowPlayingIncrementGuard = new Set();
 
 function asArray(value) {
     if (!value) {
@@ -11,25 +15,54 @@ function asArray(value) {
     return Array.isArray(value) ? value : [value];
 }
 
-function initMusicUI() {
-    document.getElementById('track-name').innerText = 'Завантаження...';
-    document.getElementById('track-artist').innerText = 'Чекаємо відповідь Last.fm';
-    document.getElementById('track-status').innerText = 'Останній трек';
-    document.getElementById('music-card').style.display = 'flex';
-    renderRecentTracks([]);
-}
-
 function getArtistName(track) {
     return track?.artist?.['#text'] || 'Невідомий виконавець';
 }
 
+function isNowPlaying(track) {
+    return track?.['@attr']?.nowplaying === 'true';
+}
+
+function getTrackKey(track) {
+    return `${String(track?.name || '').trim().toLowerCase()}::${String(getArtistName(track)).trim().toLowerCase()}`;
+}
+
+function dedupeTracks(tracks) {
+    const unique = [];
+    const seen = new Set();
+
+    for (const track of tracks) {
+        const key = getTrackKey(track);
+        if (!key || seen.has(key)) {
+            continue;
+        }
+
+        seen.add(key);
+        unique.push(track);
+    }
+
+    return unique;
+}
+
+function isTodayByUts(uts) {
+    if (!uts) {
+        return false;
+    }
+
+    const date = new Date(Number(uts) * 1000);
+    const now = new Date();
+
+    return date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate();
+}
+
 function formatLastPlayed(track) {
-    const isPlaying = track['@attr'] && track['@attr'].nowplaying === 'true';
-    if (isPlaying) {
+    if (isNowPlaying(track)) {
         return 'Зараз грає';
     }
 
-    const uts = track.date?.uts;
+    const uts = track?.date?.uts;
     if (!uts) {
         return 'Час невідомий';
     }
@@ -41,6 +74,11 @@ function formatLastPlayed(track) {
 }
 
 async function getUserPlaycount(trackName, artistName) {
+    const cacheKey = `${trackName}::${artistName}`.toLowerCase();
+    if (playcountCache.has(cacheKey)) {
+        return playcountCache.get(cacheKey);
+    }
+
     const params = new URLSearchParams({
         method: 'track.getInfo',
         user: LASTFM_USER,
@@ -54,9 +92,11 @@ async function getUserPlaycount(trackName, artistName) {
     try {
         const response = await fetch(`https://ws.audioscrobbler.com/2.0/?${params.toString()}`);
         const data = await response.json();
-        return data.track?.userplaycount || '0';
+        const normalized = normalizePlaycount(data?.track?.userplaycount || '0');
+        playcountCache.set(cacheKey, normalized);
+        return normalized;
     } catch {
-        return '0';
+        return 1;
     }
 }
 
@@ -69,14 +109,82 @@ function normalizePlaycount(playcount) {
     return Math.floor(numeric);
 }
 
-function getDisplayPlaycount(track, playcount) {
-    const normalized = normalizePlaycount(playcount);
-    const isPlaying = track['@attr'] && track['@attr'].nowplaying === 'true';
-    return isPlaying ? normalized + 1 : normalized;
+function getDisplayPlaycount(track, basePlaycount) {
+    const key = getTrackKey(track);
+    const normalized = normalizePlaycount(basePlaycount);
+
+    if (!isNowPlaying(track)) {
+        return normalized;
+    }
+
+    if (nowPlayingIncrementGuard.has(key)) {
+        return normalized;
+    }
+
+    nowPlayingIncrementGuard.add(key);
+    return normalized + 1;
+}
+
+function renderLiveTimeline(allTracks) {
+    const timeline = document.getElementById('live-timeline');
+    const summary = document.getElementById('live-summary');
+    timeline.innerHTML = '';
+
+    const bins = new Array(24).fill(0);
+    let todayCount = 0;
+
+    for (const track of allTracks) {
+        const uts = track?.date?.uts;
+        if (!isTodayByUts(uts)) {
+            continue;
+        }
+
+        const date = new Date(Number(uts) * 1000);
+        bins[date.getHours()] += 1;
+        todayCount += 1;
+    }
+
+    if (isNowPlaying(allTracks[0])) {
+        bins[new Date().getHours()] += 1;
+        todayCount += 1;
+    }
+
+    const max = Math.max(...bins, 1);
+
+    for (let hour = 0; hour < 24; hour += 1) {
+        const bar = document.createElement('div');
+        bar.className = 'live-bar';
+        bar.style.height = `${Math.max(6, Math.round((bins[hour] / max) * 44))}px`;
+        bar.title = `${String(hour).padStart(2, '0')}:00 - ${bins[hour]} трек(ів)`;
+        timeline.appendChild(bar);
+    }
+
+    summary.textContent = todayCount
+        ? `Сьогодні зафіксовано ${todayCount} прослуховувань`
+        : 'Сьогодні ще немає прослуховувань';
+}
+
+function renderYoutubePanel(todayCount) {
+    const status = document.getElementById('youtube-status');
+    const hint = document.getElementById('youtube-hint');
+
+    if (todayCount >= 8) {
+        status.textContent = 'YouTube scrobble активний';
+        hint.textContent = `Сьогодні Last.fm отримав ${todayCount} треків. Вікно авто-інструкцій приховане.`;
+        return;
+    }
+
+    if (todayCount >= 3) {
+        status.textContent = 'Частково активний';
+        hint.textContent = `Є ${todayCount} скроблів за день. Для стабільного трекінгу тримай Pano Scrobbler увімкненим.`;
+        return;
+    }
+
+    status.textContent = 'Потрібне налаштування YouTube';
+    hint.textContent = 'Мало скроблів за день. Увімкни Pano Scrobbler / Web Scrobbler і дозвіл на сповіщення.';
 }
 
 async function renderRecentTracks(tracks) {
-    const recentSection = document.getElementById('recent-section');
     const recentTracksContainer = document.getElementById('recent-tracks');
     recentTracksContainer.innerHTML = '';
 
@@ -85,22 +193,19 @@ async function renderRecentTracks(tracks) {
         emptyState.className = 'recent-empty';
         emptyState.textContent = 'Немає нещодавніх прослуховувань';
         recentTracksContainer.appendChild(emptyState);
-        recentSection.style.display = 'block';
         return;
     }
 
+    const limited = dedupeTracks(tracks).slice(0, RECENT_TRACK_LIMIT);
     const tracksWithPlaycount = await Promise.all(
-        tracks.map(async (track) => {
+        limited.map(async (track) => {
             const artistName = getArtistName(track);
-            const playcount = await getUserPlaycount(track.name, artistName);
-            return { track, playcount };
+            const basePlaycount = await getUserPlaycount(track.name, artistName);
+            return { track, artistName, basePlaycount };
         })
     );
 
     for (const item of tracksWithPlaycount) {
-        const track = item.track;
-        const artistName = getArtistName(track);
-
         const row = document.createElement('div');
         row.className = 'recent-track';
 
@@ -109,30 +214,37 @@ async function renderRecentTracks(tracks) {
 
         const nameEl = document.createElement('p');
         nameEl.className = 'recent-track-name';
-        nameEl.textContent = track.name;
+        nameEl.textContent = item.track.name;
 
         const artistEl = document.createElement('p');
         artistEl.className = 'recent-track-artist';
-        artistEl.textContent = artistName;
+        artistEl.textContent = item.artistName;
 
         const metaEl = document.createElement('p');
         metaEl.className = 'recent-track-meta';
-        metaEl.textContent = `Прослуховувань: ${getDisplayPlaycount(track, item.playcount)} • ${formatLastPlayed(track)}`;
+        metaEl.textContent = `Прослуховувань: ${getDisplayPlaycount(item.track, item.basePlaycount)} • ${formatLastPlayed(item.track)}`;
 
         info.appendChild(nameEl);
         info.appendChild(artistEl);
         info.appendChild(metaEl);
-
         row.appendChild(info);
         recentTracksContainer.appendChild(row);
     }
+}
 
-    recentSection.style.display = tracks.length ? 'block' : 'none';
+function initMusicUI() {
+    document.getElementById('track-name').innerText = 'Завантаження...';
+    document.getElementById('track-artist').innerText = 'Чекаємо відповідь Last.fm';
+    document.getElementById('track-status').innerText = 'Останній трек';
+    document.getElementById('music-card').style.display = 'flex';
+    document.getElementById('recent-tracks').innerHTML = '<p class="recent-empty">Немає нещодавніх прослуховувань</p>';
+    document.getElementById('live-summary').textContent = 'Немає активності за сьогодні';
+    renderYoutubePanel(0);
 }
 
 async function updateMusic() {
     try {
-        const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${LASTFM_USER}&api_key=${API_KEY}&format=json&limit=${RECENT_TRACK_LIMIT}`;
+        const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${LASTFM_USER}&api_key=${API_KEY}&format=json&limit=${API_FETCH_LIMIT}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -140,34 +252,39 @@ async function updateMusic() {
             throw new Error(data.message || 'Last.fm API error');
         }
 
-        const tracks = asArray(data?.recenttracks?.track);
-        if (!tracks.length) {
+        const allTracks = asArray(data?.recenttracks?.track);
+        const dedupedTracks = dedupeTracks(allTracks);
+        if (!dedupedTracks.length) {
             document.getElementById('track-name').innerText = 'Немає даних';
             document.getElementById('track-artist').innerText = 'Перевір Last.fm scrobbling';
             document.getElementById('track-status').innerText = 'Останній трек';
             document.getElementById('music-card').style.display = 'flex';
             await renderRecentTracks([]);
+            renderLiveTimeline([]);
+            renderYoutubePanel(0);
             return;
         }
 
-        const track = tracks[0];
-        const isPlaying = track['@attr'] && track['@attr'].nowplaying === 'true';
-        
-        document.getElementById('track-name').innerText = track.name;
-        document.getElementById('track-artist').innerText = getArtistName(track);
-        
-        document.getElementById('track-status').innerText = isPlaying ? "Зараз грає" : "Останній трек";
+        const currentTrack = dedupedTracks[0];
+        document.getElementById('track-name').innerText = currentTrack.name;
+        document.getElementById('track-artist').innerText = getArtistName(currentTrack);
+        document.getElementById('track-status').innerText = isNowPlaying(currentTrack) ? 'Зараз грає' : 'Останній трек';
         document.getElementById('music-card').style.display = 'flex';
 
-        await renderRecentTracks(tracks.slice(0, RECENT_TRACK_LIMIT));
-        
-    } catch (e) {
-        console.error("Музика не завантажилась:", e);
+        await renderRecentTracks(dedupedTracks);
+        renderLiveTimeline(allTracks);
+
+        const todayCount = allTracks.filter((track) => isTodayByUts(track?.date?.uts)).length + (isNowPlaying(allTracks[0]) ? 1 : 0);
+        renderYoutubePanel(todayCount);
+    } catch (error) {
+        console.error('Музика не завантажилась:', error);
         document.getElementById('track-name').innerText = 'Помилка завантаження';
         document.getElementById('track-artist').innerText = 'Перевір API ключ і Last.fm';
         document.getElementById('track-status').innerText = 'Останній трек';
         document.getElementById('music-card').style.display = 'flex';
         await renderRecentTracks([]);
+        renderLiveTimeline([]);
+        renderYoutubePanel(0);
     }
 }
 
