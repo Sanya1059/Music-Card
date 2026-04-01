@@ -4,24 +4,33 @@ const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
 const API_FETCH_LIMIT = 120;
 const FETCH_TIMEOUT_MS = 10000;
+const LASTFM_PROXY = 'https://api.allorigins.win/raw?url=';
 
 async function fetchJsonWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    async function fetchOnce(targetUrl) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const response = await fetch(targetUrl, {
+                signal: controller.signal,
+                cache: 'no-store'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            return await response.json();
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
 
     try {
-        const response = await fetch(url, {
-            signal: controller.signal,
-            cache: 'no-store'
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        return await response.json();
-    } finally {
-        clearTimeout(timeoutId);
+        return await fetchOnce(url);
+    } catch {
+        return await fetchOnce(`${LASTFM_PROXY}${encodeURIComponent(url)}`);
     }
 }
 
@@ -251,7 +260,8 @@ function initMusicUI() {
     document.getElementById('music-card').style.display = 'flex';
     document.getElementById('recent-tracks').innerHTML = '<p class="recent-empty">Немає нещодавніх прослуховувань</p>';
     document.getElementById('live-summary').textContent = 'Немає активності за сьогодні';
-    renderTrackingPanels([]);
+    document.getElementById('tracking-status').innerText = 'Підключення до Last.fm';
+    document.getElementById('tracking-hint').innerText = 'Отримуємо останні скробли...';
 }
 
 async function updateMusic() {
