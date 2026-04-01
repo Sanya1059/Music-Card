@@ -3,6 +3,27 @@ const LASTFM_USER = 'Sanya1059';
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
 const API_FETCH_LIMIT = 120;
+const FETCH_TIMEOUT_MS = 10000;
+
+async function fetchJsonWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal,
+            cache: 'no-store'
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        return await response.json();
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
 
 function asArray(value) {
     if (!value) {
@@ -236,8 +257,7 @@ function initMusicUI() {
 async function updateMusic() {
     try {
         const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${LASTFM_USER}&api_key=${API_KEY}&format=json&limit=${API_FETCH_LIMIT}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchJsonWithTimeout(url);
 
         if (data.error) {
             throw new Error(data.message || 'Last.fm API error');
@@ -269,8 +289,8 @@ async function updateMusic() {
         renderTrackingPanels(allTracks);
     } catch (error) {
         console.error('Музика не завантажилась:', error);
-        document.getElementById('track-name').innerText = 'Помилка завантаження';
-        document.getElementById('track-artist').innerText = 'Перевір API ключ і Last.fm';
+        document.getElementById('track-name').innerText = 'Last.fm не відповів';
+        document.getElementById('track-artist').innerText = 'Перевір мережу або онови сторінку';
         document.getElementById('track-status').innerText = 'Останній трек';
         document.getElementById('music-card').style.display = 'flex';
         await renderRecentTracks([], new Map());
