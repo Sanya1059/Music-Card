@@ -3,6 +3,7 @@ const LASTFM_USER = 'Sanya1059';
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
 const API_FETCH_LIMIT = 120;
+const SOURCE_COUNT_KEY = 'tracking_source_count';
 
 const playcountCache = new Map();
 const nowPlayingIncrementGuard = new Set();
@@ -164,24 +165,55 @@ function renderLiveTimeline(allTracks) {
         : 'Сьогодні ще немає прослуховувань';
 }
 
-function renderYoutubePanel(todayCount) {
-    const status = document.getElementById('youtube-status');
-    const hint = document.getElementById('youtube-hint');
-
-    if (todayCount >= 8) {
-        status.textContent = 'YouTube scrobble активний';
-        hint.textContent = `Сьогодні Last.fm отримав ${todayCount} треків. Вікно авто-інструкцій приховане.`;
-        return;
+function getTrackingSourceCount() {
+    const raw = Number(localStorage.getItem(SOURCE_COUNT_KEY));
+    if (!Number.isFinite(raw) || raw < 1) {
+        return 1;
     }
 
-    if (todayCount >= 3) {
-        status.textContent = 'Частково активний';
-        hint.textContent = `Є ${todayCount} скроблів за день. Для стабільного трекінгу тримай Pano Scrobbler увімкненим.`;
-        return;
-    }
+    return Math.floor(raw);
+}
 
-    status.textContent = 'Потрібне налаштування YouTube';
-    hint.textContent = 'Мало скроблів за день. Увімкни Pano Scrobbler / Web Scrobbler і дозвіл на сповіщення.';
+function setTrackingSourceCount(count) {
+    const normalized = Math.max(1, Math.floor(count));
+    localStorage.setItem(SOURCE_COUNT_KEY, String(normalized));
+    renderTrackingPanels();
+}
+
+function renderTrackingPanels() {
+    const count = getTrackingSourceCount();
+    const status = document.getElementById('tracking-status');
+    const hint = document.getElementById('tracking-hint');
+    const extraWindow = document.getElementById('extra-source-window');
+    const extraText = document.getElementById('extra-source-text');
+
+    status.textContent = count === 1
+        ? '1 джерело (базове)'
+        : `${count} джерела активні`;
+
+    hint.textContent = count === 1
+        ? 'Натисни +1, якщо в Pano Scrobbler додав ще одне відстеження.'
+        : `Додаткових джерел: ${count - 1}. Вікно нижче з\'являється автоматично.`;
+
+    if (count > 1) {
+        extraWindow.style.display = 'block';
+        extraText.textContent = `Працює розширений режим: +${count - 1} додаткове(их) джерело(а).`;
+    } else {
+        extraWindow.style.display = 'none';
+    }
+}
+
+function attachTrackingControls() {
+    const incButton = document.getElementById('source-inc');
+    const decButton = document.getElementById('source-dec');
+
+    incButton.addEventListener('click', () => {
+        setTrackingSourceCount(getTrackingSourceCount() + 1);
+    });
+
+    decButton.addEventListener('click', () => {
+        setTrackingSourceCount(getTrackingSourceCount() - 1);
+    });
 }
 
 async function renderRecentTracks(tracks) {
@@ -239,7 +271,7 @@ function initMusicUI() {
     document.getElementById('music-card').style.display = 'flex';
     document.getElementById('recent-tracks').innerHTML = '<p class="recent-empty">Немає нещодавніх прослуховувань</p>';
     document.getElementById('live-summary').textContent = 'Немає активності за сьогодні';
-    renderYoutubePanel(0);
+    renderTrackingPanels();
 }
 
 async function updateMusic() {
@@ -273,9 +305,6 @@ async function updateMusic() {
 
         await renderRecentTracks(dedupedTracks);
         renderLiveTimeline(allTracks);
-
-        const todayCount = allTracks.filter((track) => isTodayByUts(track?.date?.uts)).length + (isNowPlaying(allTracks[0]) ? 1 : 0);
-        renderYoutubePanel(todayCount);
     } catch (error) {
         console.error('Музика не завантажилась:', error);
         document.getElementById('track-name').innerText = 'Помилка завантаження';
@@ -284,10 +313,11 @@ async function updateMusic() {
         document.getElementById('music-card').style.display = 'flex';
         await renderRecentTracks([]);
         renderLiveTimeline([]);
-        renderYoutubePanel(0);
+        renderTrackingPanels();
     }
 }
 
+    attachTrackingControls();
 initMusicUI();
 updateMusic();
 setInterval(updateMusic, 30000);

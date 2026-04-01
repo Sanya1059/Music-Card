@@ -30,10 +30,19 @@
             <p id="live-summary" class="live-summary">Немає активності за сьогодні</p>
         </div>
 
-        <div id="youtube-panel" class="youtube-panel">
-            <p class="recent-title">YouTube Scrobble</p>
-            <p id="youtube-status" class="youtube-status">Очікуємо дані...</p>
-            <p id="youtube-hint" class="youtube-hint"></p>
+        <div id="tracking-panel" class="youtube-panel">
+            <p class="recent-title">Джерела відстеження</p>
+            <p id="tracking-status" class="youtube-status">1 джерело (базове)</p>
+            <p id="tracking-hint" class="youtube-hint">Додай ще джерело, якщо в Pano Scrobbler увімкнув додатковий трекінг.</p>
+            <div class="tracking-controls">
+                <button id="source-dec" class="tracking-button" type="button">-1</button>
+                <button id="source-inc" class="tracking-button" type="button">+1 джерело</button>
+            </div>
+        </div>
+
+        <div id="extra-source-window" class="extra-source-window">
+            <p class="recent-title">Додаткове вікно джерела</p>
+            <p id="extra-source-text" class="youtube-hint">Активовано розширений моніторинг для додаткового джерела.</p>
         </div>
 
     </div>

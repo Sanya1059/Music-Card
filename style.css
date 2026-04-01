@@ -171,6 +171,35 @@ body {
     font-weight: 600;
 }
 
+.tracking-controls {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+}
+
+.tracking-button {
+    border: 1px solid #3a404d;
+    background: #171b23;
+    color: #e5eaf1;
+    font-size: 11px;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.tracking-button:hover {
+    background: #1c212b;
+}
+
+.extra-source-window {
+    display: none;
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px solid #404757;
+    border-radius: 8px;
+    background: #121722;
+}
+
 @media (max-width: 420px) {
     .card {
         width: calc(100vw - 16px);
