@@ -1,6 +1,6 @@
 // Твої дані з Last.fm
-const LASTFM_USER = 'ТВІЙ_НІКНЕЙМ'; 
-const API_KEY = 'ТВІЙ_API_KEY';
+const LASTFM_USER = 'Sanya1059'; 
+const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 
 async function updateMusic() {
     try {
