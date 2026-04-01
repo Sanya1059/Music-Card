@@ -2,7 +2,15 @@
 const LASTFM_USER = 'Sanya1059'; 
 const API_KEY = '50e49a7fecb6f701da3880ce4096c25a';
 const RECENT_TRACK_LIMIT = 5;
-const DEFAULT_COVER = 'https://via.placeholder.com/80?text=Music';
+const DEFAULT_COVER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23333'/%3E%3Ctext x='50%25' y='50%25' font-size='12' fill='white' dominant-baseline='middle' text-anchor='middle'%3EMusic%3C/text%3E%3C/svg%3E";
+
+function toHttpsUrl(url) {
+    if (!url) {
+        return '';
+    }
+
+    return url.replace(/^http:\/\//i, 'https://');
+}
 
 function getTrackImage(track) {
     const imageList = Array.isArray(track.image) ? track.image : [];
@@ -11,7 +19,7 @@ function getTrackImage(track) {
         .filter(Boolean)
         .pop();
 
-    return bestImage || DEFAULT_COVER;
+    return toHttpsUrl(bestImage) || DEFAULT_COVER;
 }
 
 function formatLastPlayed(track) {
